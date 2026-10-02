@@ -12,8 +12,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout project
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Extract Android project
+        run: |
+          echo "=== Repository ==="
+          ls -la
+
+          rm -rf android-project
+          mkdir android-project
+
+          unzip -q YT-Pulse-Android-GitHub.zip -d android-project
+
+          echo "=== Extracted project ==="
+          find android-project -maxdepth 2 -type f | sort
+
+          echo "=== Gradle settings ==="
+          find android-project -name "settings.gradle*" -print
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -21,18 +37,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Show Android environment
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          java -version
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
       - name: Build debug APK
+        working-directory: ./android-project
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
@@ -40,13 +51,12 @@ jobs:
 
       - name: Verify APK
         run: |
-          echo "=== APK OUTPUT ==="
-          find app/build/outputs/apk -type f -name "*.apk" -print
-          test -f app/build/outputs/apk/debug/app-debug.apk
+          find android-project/app/build/outputs/apk -type f -name "*.apk" -print
+          test -f android-project/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Rename APK
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk YT-Pulse-debug.apk
+          cp android-project/app/build/outputs/apk/debug/app-debug.apk YT-Pulse-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
