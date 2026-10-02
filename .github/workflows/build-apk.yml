@@ -17,19 +17,33 @@ jobs:
 
       - name: Extract Android project
         run: |
-          echo "=== Repository ==="
-          ls -la
-
           rm -rf android-project
-          mkdir android-project
+          mkdir -p android-project
 
           unzip -q YT-Pulse-Android-GitHub.zip -d android-project
 
-          echo "=== Extracted project ==="
-          find android-project -maxdepth 2 -type f | sort
+          echo "=== EXTRACTED FILES ==="
+          find android-project -maxdepth 4 -type f | sort
 
-          echo "=== Gradle settings ==="
-          find android-project -name "settings.gradle*" -print
+      - name: Find Gradle project
+        id: project
+        shell: bash
+        run: |
+          SETTINGS_FILE="$(find "$GITHUB_WORKSPACE/android-project" \
+            -type f \( -name "settings.gradle.kts" -o -name "settings.gradle" \) \
+            | head -n 1)"
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle(.kts) was not found."
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+
+          echo "Gradle project found:"
+          echo "$PROJECT_DIR"
+
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -43,20 +57,34 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
-        working-directory: ./android-project
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
+          cd "${{ steps.project.outputs.project_dir }}"
+
+          echo "=== BUILD DIRECTORY ==="
+          pwd
+          ls -la
+
           gradle :app:assembleDebug --stacktrace
 
-      - name: Verify APK
+      - name: Find generated APK
+        id: apk
+        shell: bash
         run: |
-          find android-project/app/build/outputs/apk -type f -name "*.apk" -print
-          test -f android-project/app/build/outputs/apk/debug/app-debug.apk
+          APK_FILE="$(find "${{ steps.project.outputs.project_dir }}" \
+            -type f -path "*/build/outputs/apk/debug/*.apk" \
+            | head -n 1)"
 
-      - name: Rename APK
-        run: |
-          cp android-project/app/build/outputs/apk/debug/app-debug.apk YT-Pulse-debug.apk
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: APK was not generated."
+            exit 1
+          fi
+
+          echo "APK found:"
+          echo "$APK_FILE"
+
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/YT-Pulse-debug.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
