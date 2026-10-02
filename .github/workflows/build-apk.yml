@@ -2,15 +2,17 @@ name: Build YT Pulse APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout project
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -19,11 +21,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Show Android environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          java -version
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -33,10 +35,18 @@ jobs:
       - name: Build debug APK
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: gradle :app:assembleDebug --stacktrace
+        run: |
+          gradle :app:assembleDebug --stacktrace
+
+      - name: Verify APK
+        run: |
+          echo "=== APK OUTPUT ==="
+          find app/build/outputs/apk -type f -name "*.apk" -print
+          test -f app/build/outputs/apk/debug/app-debug.apk
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk YT-Pulse-debug.apk
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk YT-Pulse-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -44,3 +54,4 @@ jobs:
           name: YT-Pulse-APK
           path: YT-Pulse-debug.apk
           if-no-files-found: error
+          retention-days: 14
